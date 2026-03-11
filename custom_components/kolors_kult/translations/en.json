@@ -5,14 +5,14 @@
         "title": "Kolors Kult Login",
         "description": "Enter your Kolors Kult app credentials (same as the KULT HOME AUTOMATION app).",
         "data": {
-          "email": "Email or username",
+          "email": "Username",
           "password": "Password"
         }
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to Kolors Kult servers.",
-      "invalid_auth": "Invalid email or password.",
+      "invalid_auth": "Invalid username or password.",
       "unknown": "Unexpected error."
     },
     "abort": {

@@ -82,23 +82,27 @@ class KolorsKultSwitch(CoordinatorEntity[KolorsKultCoordinator], SwitchEntity):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        await self.coordinator.api.set_button_state(self._device_id, True)
-        # Optimistic update for snappy UI
-        device = self._device
-        if device:
-            device.status = True
-            self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        settings = {
+            "speed": 0.0,
+            "status": True,
+            "child_lock": False,
+            "steps": 0,
+            "index": 0,
+            "state": 0,
+        }
+        await self.coordinator.send_and_refresh(self._device_id, settings)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        await self.coordinator.api.set_button_state(self._device_id, False)
-        # Optimistic update for snappy UI
-        device = self._device
-        if device:
-            device.status = False
-            self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        settings = {
+            "speed": 0.0,
+            "status": False,
+            "child_lock": False,
+            "steps": 0,
+            "index": 0,
+            "state": 0,
+        }
+        await self.coordinator.send_and_refresh(self._device_id, settings)
 
     @callback
     def _handle_coordinator_update(self) -> None:

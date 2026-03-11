@@ -84,6 +84,8 @@ class KolorsKultFan(CoordinatorEntity[KolorsKultCoordinator], FanEntity):
 
         self._attr_unique_id = f"{DOMAIN}_{device_id}"
         self._attr_name = f"{device.controller_product_id} {device.name}"
+        # Remember last non-zero speed so turn_on can restore it
+        self._last_nonzero_speed: float = device.speed if device.speed > 0 else 100.0
 
         # Group devices under their controller (physical switch panel)
         self._attr_device_info = DeviceInfo(
@@ -121,6 +123,19 @@ class KolorsKultFan(CoordinatorEntity[KolorsKultCoordinator], FanEntity):
             return 0
         return api_speed_to_percentage(device.speed)
 
+    def _build_dimmer_settings(self, *, on: bool, speed: float) -> dict[str, Any]:
+        """Build the settings dict for a dimmer mutation."""
+        device = self._device
+        steps = device.steps if device else 8
+        return {
+            "speed": speed,
+            "status": on,
+            "child_lock": False,
+            "steps": steps,
+            "index": 0,
+            "state": 0,
+        }
+
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
         if percentage == 0:
@@ -128,20 +143,9 @@ class KolorsKultFan(CoordinatorEntity[KolorsKultCoordinator], FanEntity):
             return
 
         api_speed = percentage_to_api_speed(percentage)
-        device = self._device
-        steps = device.steps if device else 8
-
-        await self.coordinator.api.set_dimmer_state(
-            self._device_id, on=True, speed=api_speed, steps=steps
-        )
-
-        # Optimistic update
-        if device:
-            device.status = True
-            device.speed = api_speed
-            self.async_write_ha_state()
-
-        await self.coordinator.async_request_refresh()
+        self._last_nonzero_speed = api_speed
+        settings = self._build_dimmer_settings(on=True, speed=api_speed)
+        await self.coordinator.send_and_refresh(self._device_id, settings)
 
     async def async_turn_on(
         self,
@@ -149,45 +153,35 @@ class KolorsKultFan(CoordinatorEntity[KolorsKultCoordinator], FanEntity):
         preset_mode: str | None = None,
         **kwargs: Any,
     ) -> None:
-        """Turn the fan on."""
+        """Turn the fan on.
+
+        If a percentage is given, use that speed.
+        Otherwise restore the last non-zero speed, or 100% if none.
+        """
         if percentage is not None:
             await self.async_set_percentage(percentage)
             return
 
-        # Default: turn on at the last known speed, or step 4 (50%) if unknown
-        device = self._device
-        steps = device.steps if device else 8
-        last_speed = device.speed if device and device.speed > 0 else 50.0
-
-        await self.coordinator.api.set_dimmer_state(
-            self._device_id, on=True, speed=last_speed, steps=steps
-        )
-
-        if device:
-            device.status = True
-            device.speed = last_speed
-            self.async_write_ha_state()
-
-        await self.coordinator.async_request_refresh()
+        # Use last known non-zero speed, defaulting to 100%
+        speed = self._last_nonzero_speed
+        settings = self._build_dimmer_settings(on=True, speed=speed)
+        await self.coordinator.send_and_refresh(self._device_id, settings)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the fan off."""
+        # Remember current speed before turning off so turn_on can restore it
         device = self._device
-        steps = device.steps if device else 8
+        if device and device.speed > 0:
+            self._last_nonzero_speed = device.speed
 
-        await self.coordinator.api.set_dimmer_state(
-            self._device_id, on=False, speed=0.0, steps=steps
-        )
-
-        # Optimistic update
-        if device:
-            device.status = False
-            device.speed = 0.0
-            self.async_write_ha_state()
-
-        await self.coordinator.async_request_refresh()
+        settings = self._build_dimmer_settings(on=False, speed=0.0)
+        await self.coordinator.send_and_refresh(self._device_id, settings)
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        # Keep _last_nonzero_speed in sync when data arrives from polling
+        device = self._device
+        if device and device.speed > 0:
+            self._last_nonzero_speed = device.speed
         self.async_write_ha_state()
