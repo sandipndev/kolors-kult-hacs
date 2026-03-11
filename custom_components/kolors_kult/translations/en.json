@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Kolors Kult Login",
+        "description": "Enter your Kolors Kult app credentials (same as the KULT HOME AUTOMATION app).",
+        "data": {
+          "email": "Email or username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Kolors Kult servers.",
+      "invalid_auth": "Invalid email or password.",
+      "unknown": "Unexpected error."
+    },
+    "abort": {
+      "already_configured": "This account is already configured."
+    }
+  }
+}
