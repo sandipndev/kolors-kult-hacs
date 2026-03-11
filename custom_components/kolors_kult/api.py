@@ -39,9 +39,13 @@ class KolorsKultApi:
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(
                 headers={
-                    "Accept": "application/json",
                     "Content-Type": "application/json; charset=utf-8",
-                    "User-Agent": "SkyBot.FormsApp/1.4.1",
+                    "Origin": "https://api.kolorsworld.net/app/1.3/",
+                    "Accept": "application/json",
+                    "Accept-Language": "en-IN,en;q=0.9",
+                    "Accept-Encoding": "gzip, deflate, br",
+                    "User-Agent": "SkyBot.FormsApp/1.4.1 CFNetwork/3860.400.51 Darwin/25.3.0",
+                    "Connection": "keep-alive",
                 }
             )
         return self._session
