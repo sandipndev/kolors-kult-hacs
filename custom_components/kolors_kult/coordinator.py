@@ -57,12 +57,46 @@ class KolorsKultCoordinator(DataUpdateCoordinator[dict[str, KolorsKultDevice]]):
     async def send_and_refresh(
         self, device_id: str, settings: dict[str, Any]
     ) -> None:
-        """Send a single mutation then reload confirmed state.
+        """Send a single mutation then poll until the confirmed state matches.
 
         Acquires a lock so mutations are strictly serialized.
-        The caller will block until the fresh state is available,
-        which keeps the HA UI in a loading/spinner state until done.
+        After sending the mutation, polls the load endpoint until the
+        device's status/speed reflect what we sent, or gives up after
+        a timeout.  The caller blocks the whole time so the HA UI
+        stays in a loading/spinner state.
         """
+        desired_status = settings.get("status")
+        desired_speed = settings.get("speed")
+
         async with self._mutation_lock:
             await self.api.update_device_settings(device_id, settings)
-            await self.async_refresh()
+
+            # Poll until the device state matches what we just sent
+            max_attempts = 10
+            for attempt in range(max_attempts):
+                await asyncio.sleep(1)
+                await self.async_refresh()
+
+                device = self.data.get(device_id) if self.data else None
+                if device is None:
+                    continue
+
+                status_ok = device.status == desired_status
+                # For speed: only check when turning on (speed matters)
+                # When turning off, status match is sufficient
+                if desired_status is False:
+                    if status_ok:
+                        return
+                else:
+                    speed_ok = (
+                        desired_speed is None
+                        or abs(device.speed - desired_speed) < 1.0
+                    )
+                    if status_ok and speed_ok:
+                        return
+
+            _LOGGER.warning(
+                "Device %s did not confirm state after %d attempts",
+                device_id,
+                max_attempts,
+            )
